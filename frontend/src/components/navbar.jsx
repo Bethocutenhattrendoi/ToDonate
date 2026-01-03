@@ -1,68 +1,96 @@
-import {
-  NavigationMenu,
-  NavigationMenuList,
-  NavigationMenuItem,
-  NavigationMenuTrigger,
-  NavigationMenuContent
-} from "@/components/ui/navigation-menu"
-
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { Bell, ChevronDown } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import LoginBox from "@/components/LoginBox";
+import { fetchMe } from "@/lib/auth";
 
 export default function Navbar() {
+  const [openLogin, setOpenLogin] = useState(false);
+  const [me, setMe] = useState(null);
+
+  // load user
+  useEffect(() => {
+    (async () => {
+      const u = await fetchMe();
+      setMe(u);
+    })();
+  }, []);
+
+  // khóa scroll khi mở popup
+  useEffect(() => {
+    document.body.style.overflow = openLogin ? "hidden" : "";
+    return () => (document.body.style.overflow = "");
+  }, [openLogin]);
+
+  // đóng bằng ESC
+  useEffect(() => {
+    const onKeyDown = (e) => e.key === "Escape" && setOpenLogin(false);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  //  callback để LoginBox báo "đăng nhập xong"
+  const handleLoggedIn = (user) => {
+    if (user) setMe(user);
+    setOpenLogin(false);
+  };
+
   return (
-    <header className="fixed top-0 left-0 w-full z-50 bg-[#0B0E14]/60 backdrop-blur-xl border-b border-white/10">
-      <div className="w-full max-w-[1400px] mx-auto px-8 h-20 flex items-center justify-between">
-
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-blue-500 shadow-[0_0_15px_rgba(0,123,255,0.6)]" />
-          <span className="text-xl font-semibold tracking-tight">ToDonate</span>
+    <>
+      <nav className="w-full h-16 flex items-center justify-between px-12 border-b border-white/10 bg-black/40 backdrop-blur">
+        <div className="flex items-center gap-6">
+          <div className="font-bold text-xl text-white">ToDonate</div>
+          <a className="text-white/70 hover:text-white text-sm cursor-pointer">Donate</a>
+          <a className="text-white/70 hover:text-white text-sm cursor-pointer">Chiến dịch từ thiện</a>
         </div>
 
-        {/* Menu */}
-        <NavigationMenu>
-          <NavigationMenuList className="hidden md:flex gap-6 text-sm font-medium text-gray-300">
+        <div className="flex items-center gap-3">
+          {!me ? (
+            <Button
+              onClick={() => setOpenLogin(true)}
+              className="rounded-xl bg-blue-500 hover:bg-blue-600"
+            >
+              Đăng nhập
+            </Button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+                <img
+                  src={me.avatarUrl}
+                  alt="avatar"
+                  className="w-7 h-7 rounded-full object-cover"
+                />
+                <span className="text-sm text-white/90">{me.displayName || me.username}</span>
+              </div>
 
-            <NavigationMenuItem>
-              <NavigationMenuTrigger className="hover:text-blue-400">DONATE</NavigationMenuTrigger>
-              <NavigationMenuContent className="p-4 bg-[#12151d] border border-white/10">
-                <p className="text-gray-300 text-sm">Trang nhận donate của bạn</p>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-
-            <NavigationMenuItem>
-              <NavigationMenuTrigger className="hover:text-blue-400">BOOKING</NavigationMenuTrigger>
-              <NavigationMenuContent className="p-4 bg-[#12151d] border border-white/10">
-                <p className="text-gray-300 text-sm">Đặt lịch hẹn chuyên nghiệp</p>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-
-          </NavigationMenuList>
-        </NavigationMenu>
-
-        {/* Avatar */}
-        <div className="flex items-center gap-5">
-          <Bell className="w-6 h-6 text-gray-300 hover:text-white transition" />
-
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 cursor-pointer">
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="https://i.pravatar.cc/100?img=12" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent className="w-48 bg-[#12151d] text-white border-white/10">
-              <DropdownMenuItem>Trang cá nhân</DropdownMenuItem>
-              <DropdownMenuItem>Cài đặt</DropdownMenuItem>
-              <DropdownMenuItem className="text-red-400">Đăng xuất</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              {/* sau này bạn làm logout endpoint thì nối vào đây */}
+              {/* <Button variant="secondary" onClick={...}>Đăng xuất</Button> */}
+            </div>
+          )}
         </div>
-      </div>
-    </header>
-  )
+      </nav>
+
+      {openLogin && (
+        <div className="fixed inset-0 z-[999]">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setOpenLogin(false)} />
+
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0B0E14]/95 backdrop-blur p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">Đăng nhập</h3>
+                <button
+                  onClick={() => setOpenLogin(false)}
+                  className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* truyền callback */}
+              <LoginBox onLoggedIn={handleLoggedIn} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
