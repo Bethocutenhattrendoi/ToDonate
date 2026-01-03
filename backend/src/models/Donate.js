@@ -25,6 +25,13 @@ const donateSchema = new mongoose.Schema(
       enum: ["pending", "success", "failed"],
       default: "pending",
     },
+
+    receiverUsername: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
   },
   {
     timestamps: true, // tự động tạo createdAt và updatedAt
