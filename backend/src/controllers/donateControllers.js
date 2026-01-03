@@ -4,7 +4,14 @@ import Donate from "../models/Donate.js";
 // Lấy tất cả donate
 export const getAllDonates = async (req, res) => {
   try {
-    const donates = await Donate.find().sort({ createdAt: -1 });
+    const { username, limit = 200, skip = 0 } = req.query;
+    const filter = username ? { receiverUsername: username } : {};
+
+    const donates = await Donate.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(Number(skip))
+      .limit(Number(limit));
+
     res.status(200).json(donates);
   } catch (error) {
     console.error("Lỗi khi lấy dữ liệu Donate:", error);
@@ -15,18 +22,17 @@ export const getAllDonates = async (req, res) => {
 // Tạo donate mới
 export const createDonate = async (req, res) => {
   try {
-    const { title, amount, name, message, status } = req.body;
+    const { receiverUsername, amount, name, message, status } = req.body;
 
-    // Validate dữ liệu cơ bản
+    if (!receiverUsername) {
+      return res.status(400).json({ message: "Thiếu receiverUsername" });
+    }
     if (!name || !amount) {
       return res.status(400).json({ message: "Thiếu trường name hoặc amount" });
     }
-    if (status && !["pending", "success", "failed"].includes(status)) {
-      return res.status(400).json({ message: "Trường status không hợp lệ" });
-    }
 
     const newDonate = new Donate({
-      title: title || "",
+      receiverUsername,
       amount,
       name,
       message: message || "",
@@ -35,10 +41,7 @@ export const createDonate = async (req, res) => {
 
     await newDonate.save();
 
-    res.status(201).json({
-      message: "Donate mới đã được tạo thành công",
-      donate: newDonate,
-    });
+    res.status(201).json({ message: "Donate mới đã được tạo thành công", donate: newDonate });
   } catch (error) {
     console.error("Lỗi khi tạo Donate mới:", error);
     res.status(500).json({ message: "Lỗi khi tạo Donate mới", error: error.message });
