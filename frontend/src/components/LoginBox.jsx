@@ -1,11 +1,8 @@
 import { GoogleLogin } from "@react-oauth/google";
-import { useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
 export default function LoginBox({ onLoggedIn }) {
-  const navigate = useNavigate();
-
   return (
     <div className="w-full">
       <GoogleLogin
@@ -24,14 +21,9 @@ export default function LoginBox({ onLoggedIn }) {
           }
 
           const data = await r.json(); // { user: {...} }
-          const username = data?.user?.username;
 
-          // đóng popup + cập nhật navbar
+          // ✅ Chỉ đóng popup + cập nhật navbar, KHÔNG navigate
           onLoggedIn?.(data?.user);
-
-          //  chuyển sang userpage
-          if (username) navigate(`/${username}`);
-          else navigate("/");
         }}
         onError={() => alert("Google Login Failed")}
       />

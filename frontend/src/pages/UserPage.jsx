@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import DonateModule from "@/components/DonateModule";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
@@ -58,34 +59,30 @@ function timeAgo(iso) {
 
 function withinRange(createdAt, mode) {
   if (!createdAt) return true;
+  if (mode === "all") return true;
+
   const t = new Date(createdAt).getTime();
   const now = Date.now();
   const diff = now - t;
   const day = 24 * 60 * 60 * 1000;
+
   if (mode === "day") return diff <= day;
-  if (mode === "week") return diff <= 7 * day;
   if (mode === "month") return diff <= 30 * day;
+
   return true;
 }
 
 export default function UserPage() {
   const { username } = useParams();
 
-  // form
-  const [fromName, setFromName] = useState("");
-  const [amount, setAmount] = useState(50000);
-  const [message, setMessage] = useState("");
-
   // data
   const [loading, setLoading] = useState(false);
   const [donations, setDonations] = useState([]);
-  const [lbTab, setLbTab] = useState("day"); // day|week|month
+  const [lbTab, setLbTab] = useState("day"); // day|month|all
 
   const avatarUrl = useMemo(() => {
     return `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(username || "user")}`;
   }, [username]);
-
-  const presets = [50000, 100000, 150000];
 
   async function fetchDonations() {
     setLoading(true);
@@ -120,63 +117,36 @@ export default function UserPage() {
       .slice(0, 10);
   }, [donations, lbTab]);
 
-  async function handleDonate() {
-    if (!fromName.trim()) return alert("Nhập tên hiển thị");
-    if (!amount || Number(amount) <= 0) return alert("Số tiền không hợp lệ");
-
-    try {
-      const res = await fetch(`${API_BASE}/api/donate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receiverUsername: username, //  quan trọng để đúng từng trang
-          name: fromName.trim(),
-          amount: Number(amount),
-          message: message || "",
-          status: "success",
-        }),
-      });
-      if (!res.ok) throw new Error("fail");
-      setFromName("");
-      setAmount(50000);
-      setMessage("");
-      fetchDonations();
-    } catch {
-      alert("Không gửi donate được. Kiểm tra backend/CORS.");
-    }
-  }
-
   return (
-    <div className="min-h-screen w-full bg-[#0B0E14] text-white">
-      {/* TOP NAV (giống ảnh) */}
-      <div className="h-12 bg-black/80 border-b border-white/5 flex items-center">
-        <div className="max-w-6xl mx-auto w-full px-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="font-bold tracking-wide text-white/90">zypage</div>
-            <div className="text-xs font-semibold text-white/60 hover:text-white cursor-pointer">DONATE</div>
-            <div className="text-xs font-semibold text-white/60 hover:text-white cursor-pointer">BOOKING</div>
-          </div>
-          <div className="flex items-center gap-3 text-white/70">
-            <div className="w-7 h-7 rounded-full bg-white/10" />
-            <div className="w-7 h-7 rounded-full bg-white/10" />
-            <div className="w-7 h-7 rounded-full bg-yellow-500/20 border border-yellow-400/20" />
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-[calc(100vh-64px)] w-full bg-[#0B0E14] text-white">
       {/* COVER */}
       <div className="relative">
-        <div className="h-40 md:h-52 w-full overflow-hidden">
-          <img src={coverUrl} className="w-full h-full object-cover" alt="cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/45 to-black/10" />
+        <div className="h-40 md:h-52 w-full overflow-hidden relative">
+          <img
+            src={coverUrl}
+            className="w-full h-full object-cover"
+            alt="cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+
+          {/* quan trọng: pointer-events-none để không chặn click */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#0B0E14] via-[#0B0E14]/45 to-black/10" />
         </div>
 
         <div className="max-w-6xl mx-auto px-4">
-          {/* TAB Donate (màu xanh, giống ảnh) */}
-          <div className="-mt-8 flex items-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-t-xl bg-[#4D63FF] text-sm font-semibold shadow">
-              <span className="w-2 h-2 rounded-full bg-yellow-300" />
-              Donate
+          {/* TAB Donate */}
+          <div className="-mt-10 flex items-center pl-20 relative z-30">
+            <div
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-t-2xl
+                         bg-gradient-to-r from-[#4D63FF] to-[#6C7BFF]
+                         text-white text-sm font-extrabold tracking-wide
+                         shadow-xl shadow-[#4D63FF]/35
+                         ring-1 ring-white/15"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-300 shadow-sm shadow-yellow-300/40" />
+              DONATE
             </div>
           </div>
 
@@ -199,10 +169,6 @@ export default function UserPage() {
                   <MsgIcon />
                   <span className="text-sm">Nhắn tin</span>
                 </button>
-                <button className="h-9 px-4 rounded-xl bg-[#4D63FF] hover:bg-[#3f56ff] transition inline-flex items-center gap-2">
-                  <BoxIcon />
-                  <span className="text-sm font-semibold">Tạo hộp</span>
-                </button>
               </div>
             </div>
           </div>
@@ -211,131 +177,43 @@ export default function UserPage() {
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6 pb-12">
             {/* LEFT */}
             <div className="lg:col-span-5 space-y-4">
-              {/* DONATE CARD */}
-              <div className="bg-[#151824] border border-white/10 rounded-2xl p-5">
-                <div className="text-lg font-semibold mb-3">Donate</div>
+              {/* DONATE MODULE */}
+              <DonateModule
+                receiverUsername={username}
+                onSuccess={fetchDonations}
+              />
 
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-xs text-white/60 mb-1">Từ: tên hiển thị</div>
-                    <input
-                      value={fromName}
-                      onChange={(e) => setFromName(e.target.value)}
-                      placeholder="Cường Nguyễn"
-                      className="w-full h-10 px-3 rounded-xl bg-[#10131B] border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#4D63FF]/40"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-white/60 mb-1">Số tiền</div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="flex-1 h-10 px-3 rounded-xl bg-[#10131B] border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#4D63FF]/40"
-                      />
-                      <div className="flex gap-2">
-                        {presets.map((p) => (
-                          <button
-                            key={p}
-                            onClick={() => setAmount(p)}
-                            className={`h-10 px-3 rounded-xl border text-sm transition ${
-                              Number(amount) === p
-                                ? "bg-[#4D63FF]/20 border-[#4D63FF]/40 text-white"
-                                : "bg-white/5 border-white/10 hover:bg-white/10"
-                            }`}
-                          >
-                            {formatVND(p)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-white/60 mb-1">Lời nhắn</div>
-                    <div className="relative">
-                      <textarea
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value.slice(0, 200))}
-                        placeholder="Nhập lời nhắn"
-                        rows={4}
-                        className="w-full px-3 py-2 rounded-xl bg-[#10131B] border border-white/10 focus:outline-none focus:ring-2 focus:ring-[#4D63FF]/40 resize-none"
-                      />
-                      <div className="absolute bottom-2 right-3 text-xs text-white/50">
-                        {message.length}/200
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PREMIUM BLOCK (giống ảnh: nằm trong card donate) */}
-                  <div className="pt-2 border-t border-white/10">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">Dành cho premium</div>
-                      <button className="text-xs font-semibold text-yellow-300 hover:text-yellow-200 px-0 py-0 bg-transparent border-0 shadow-none">
-                        Đăng ký ngay
-                      </button>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="text-sm text-white/70">Tạo QR / bật thông báo</div>
-                      <div className="flex items-center gap-2">
-                        <button className="h-8 px-3 rounded-lg bg-[#4D63FF]/20 border border-[#4D63FF]/30 text-sm">
-                          QR
-                        </button>
-                        <button className="h-8 px-3 rounded-lg bg-white/5 border border-white/10 text-sm">
-                          Chỉnh sửa
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DONATE BUTTON (to, bo tròn giống ảnh) */}
-                  <button
-                    onClick={handleDonate}
-                    className="w-full h-11 rounded-2xl bg-[#E7E7EA] text-black font-semibold hover:bg-white transition"
-                  >
-                    Donate
-                  </button>
-                </div>
-              </div>
-
-              {/* PROGRESS CARD nhỏ */}
-              <div className="bg-[#151824] border border-white/10 rounded-2xl p-4">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center">🗑️</span>
-                    <span className="text-yellow-300 font-semibold">Về cái này 10 nữa đi ông ơi</span>
-                  </div>
-                  <span className="text-white/60">0/10</span>
-                </div>
-                <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full w-[20%] bg-[#4D63FF]" />
-                </div>
-              </div>
+            
 
               {/* LEADERBOARD */}
               <div className="bg-[#151824] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="font-semibold">Bảng xếp hạng</div>
-                  <div className="flex gap-2">
+
+                  {/* Tabs */}
+                  <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
                     {[
                       { k: "day", t: "Ngày" },
-                      { k: "week", t: "Tuần" },
                       { k: "month", t: "Tháng" },
-                    ].map((x) => (
-                      <button
-                        key={x.k}
-                        onClick={() => setLbTab(x.k)}
-                        className={`h-8 px-3 rounded-lg border text-sm transition ${
-                          lbTab === x.k
-                            ? "bg-white/90 text-black border-white/20"
-                            : "bg-transparent text-white/70 border-white/10 hover:bg-white/5"
-                        }`}
-                      >
-                        {x.t}
-                      </button>
-                    ))}
+                      { k: "all", t: "Tổng" },
+                    ].map((x) => {
+                      const active = lbTab === x.k;
+                      return (
+                        <button
+                          key={x.k}
+                          onClick={() => setLbTab(x.k)}
+                          className={[
+                            "h-8 px-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center leading-none",
+                            "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4D63FF]/50",
+                            active
+                              ? "text-white bg-gradient-to-b from-[#5B6CFF] to-[#3F56FF] shadow-md shadow-[#4D63FF]/25 border border-white/10"
+                              : "text-white/70 hover:text-white bg-transparent hover:bg-white/5 border border-transparent",
+                          ].join(" ")}
+                        >
+                          {x.t}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

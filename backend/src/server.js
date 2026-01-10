@@ -1,35 +1,58 @@
 import express from "express";
-import donateRouter from "./routes/donateRouter.js";
-import authRouter from "./routes/authRouter.js";
-import { connectDB } from "./config/db.js";
-import dotenv from "dotenv";
 import cors from "cors";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
+
+import donationsRouter from "./routes/donationsRouter.js";
+import authRouter from "./routes/authRouter.js";
+import meRouter from "./routes/meRouter.js";
+import profileRouter from "./routes/profileRouter.js";
+import walletRoutes from "./routes/walletRoutes.js";
+import vnpayRouter from "./routes/vnpayRouter.js";
+import exploreRouter from "./routes/exploreRouter.js";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5001;
 const app = express();
 
-const corsOptions = {
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-
-app.use(cookieParser());
+app.use(cors({ 
+  origin: "http://localhost:5173", // 👈 URL cụ thể, không dùng true
+  credentials: true 
+}));
+app.use(cookieParser()); // 👈 Thêm để đọc cookies
 app.use(express.json());
 
-app.use("/api/auth", authRouter);
-app.use("/api/donate", donateRouter);
+app.get("/health", (req, res) => res.json({ ok: true }));
 
-connectDB()
-  .then(() => {
-    console.log("Kết nối đến cơ sở dữ liệu thành công");
-    app.listen(PORT, () => console.log("Server bắt đầu chạy trên cổng", PORT));
-  })
-  .catch((error) => console.error("Lỗi kết nối đến cơ sở dữ liệu:", error));
+app.use("/api/auth", authRouter);
+app.use("/api", meRouter);
+app.use("/api/profile", profileRouter);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/donations", donationsRouter);
+app.use("/api/vnpay", vnpayRouter);
+app.use("/api/explore", exploreRouter);
+
+const PORT = process.env.PORT || 5001;
+const MONGO_URI = process.env.MONGOOSEDB_CONNECT_STRING;
+
+async function start() {
+  try {
+    if (!MONGO_URI) {
+      console.error("Missing MONGO_URI in .env");
+      process.exit(1);
+    }
+
+    await mongoose.connect(MONGO_URI);
+    console.log("MongoDB connected");
+
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error("Server failed to start:", err);
+    process.exit(1);
+  }
+}
+
+start();

@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import Navbar from "@/components/navbar"
 
 function FloatingIcons() {
   const icons = [
@@ -42,7 +41,7 @@ export default function HomePage() {
 
       {/* Content */}
       <div className="relative z-10 w-full">
-        <Navbar />
+        {/* Navbar đã nằm ở Layout rồi */}
 
         {/* HERO */}
         <section className="relative min-h-screen flex items-center px-12">

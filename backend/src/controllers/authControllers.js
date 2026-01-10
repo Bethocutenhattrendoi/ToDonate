@@ -96,3 +96,14 @@ export const me = async (req, res) => {
   }
 };
 
+export const logout = async (req, res) => {
+  // Xoá cookie JWT
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false, // dev
+  });
+
+  return res.json({ message: "Logged out" });
+};
+

@@ -1,52 +1,245 @@
 import mongoose from "mongoose";
 import Donate from "../models/Donate.js";
+import User from "../models/User.js";
+import WalletTransaction from "../models/WalletTransaction.js";
 
-// Lấy tất cả donate
-export const getAllDonates = async (req, res) => {
+/**
+ * Lấy danh sách donations
+ * GET /api/donations?username=xxx
+ */
+export async function getDonations(req, res) {
   try {
-    const { username, limit = 200, skip = 0 } = req.query;
-    const filter = username ? { receiverUsername: username } : {};
+    const { username, limit = 200 } = req.query;
 
-    const donates = await Donate.find(filter)
+    const q = {};
+    if (username) q.receiverUsername = username;
+
+    const items = await Donate.find(q)
       .sort({ createdAt: -1 })
-      .skip(Number(skip))
-      .limit(Number(limit));
+      .limit(Math.min(Number(limit) || 200, 500))
+      .lean();
 
-    res.status(200).json(donates);
-  } catch (error) {
-    console.error("Lỗi khi lấy dữ liệu Donate:", error);
-    res.status(500).json({ message: "Lỗi khi lấy dữ liệu Donate" });
+    return res.json(items);
+  } catch (e) {
+    console.error("getDonations error:", e);
+    return res.status(500).json({ message: "Get donations failed" });
   }
-};
+}
 
-// Tạo donate mới
-export const createDonate = async (req, res) => {
+/**
+ * Lấy thông tin người nhận donate
+ * GET /api/donations/receiver/:username
+ */
+export async function getReceiver(req, res) {
   try {
-    const { receiverUsername, amount, name, message, status } = req.body;
+    const { username } = req.params;
 
-    if (!receiverUsername) {
-      return res.status(400).json({ message: "Thiếu receiverUsername" });
-    }
-    if (!name || !amount) {
-      return res.status(400).json({ message: "Thiếu trường name hoặc amount" });
+    const user = await User.findOne({ username })
+      .select("username displayName avatarUrl bio dPointAvailable")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
     }
 
-    const newDonate = new Donate({
+    return res.json(user);
+  } catch (error) {
+    console.error("getReceiver error:", error);
+    return res.status(500).json({ message: "Lỗi server" });
+  }
+}
+
+/**
+ * Tạo donation mới (KHÔNG dùng Transaction - tương thích MongoDB standalone)
+ * POST /api/donations
+ */
+export async function createDonation(req, res) {
+  const { receiverUsername, name, amount, message = "" } = req.body;
+
+  const money = Number(amount || 0);
+  
+  // Validate
+  if (!receiverUsername) {
+    return res.status(400).json({ message: "Thiếu receiverUsername" });
+  }
+  if (!Number.isFinite(money) || money < 1000) {
+    return res.status(400).json({ message: "Số tiền tối thiểu là 1.000 DPoint" });
+  }
+  if (money > 100000000) {
+    return res.status(400).json({ message: "Số tiền tối đa là 100.000.000 DPoint" });
+  }
+
+  // Người gửi: user đang đăng nhập
+  const sender = req.user;
+  if (!sender) {
+    return res.status(401).json({ message: "Vui lòng đăng nhập" });
+  }
+
+  try {
+    // Lấy thông tin sender
+    const senderDoc = await User.findById(sender._id);
+    if (!senderDoc) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Tìm người nhận
+    const receiverDoc = await User.findOne({ username: receiverUsername });
+    if (!receiverDoc) {
+      return res.status(404).json({ message: "Không tìm thấy người nhận" });
+    }
+
+    // Không cho donate chính mình
+    if (String(senderDoc._id) === String(receiverDoc._id)) {
+      return res.status(400).json({ message: "Không thể donate cho chính mình" });
+    }
+
+    // Kiểm tra số dư
+    const available = Number(senderDoc.dPointAvailable || 0);
+    if (available < money) {
+      return res.status(400).json({ 
+        message: "Số dư không đủ",
+        available: available,
+        required: money
+      });
+    }
+
+    // Lưu balance trước khi thay đổi
+    const senderBalanceBefore = available;
+    const receiverBalanceBefore = Number(receiverDoc.dPointAvailable || 0);
+
+    // Trừ DPoint người gửi
+    senderDoc.dPointAvailable = available - money;
+    await senderDoc.save();
+
+    // Cộng DPoint người nhận
+    receiverDoc.dPointAvailable = receiverBalanceBefore + money;
+    await receiverDoc.save();
+
+    // Tạo record donate
+    const donate = await Donate.create({
       receiverUsername,
-      amount,
-      name,
-      message: message || "",
-      status: status || "pending",
+      receiverUserId: receiverDoc._id,
+      senderUserId: senderDoc._id,
+      senderUsername: senderDoc.username,
+      name: (name || senderDoc.displayName || senderDoc.username || "Ẩn danh").trim(),
+      amount: money,
+      message: message?.trim() || "",
+      status: "success",
     });
 
-    await newDonate.save();
+    // Log giao dịch ví - Người gửi
+    await WalletTransaction.create({
+      userId: senderDoc._id,
+      type: "donate_out",
+      amount: -money,
+      balanceBefore: senderBalanceBefore,
+      balanceAfter: senderDoc.dPointAvailable,
+      status: "completed",
+      meta: { 
+        donateId: donate._id, 
+        receiverUserId: receiverDoc._id,
+        note: `Donate cho @${receiverUsername}` 
+      },
+    });
 
-    res.status(201).json({ message: "Donate mới đã được tạo thành công", donate: newDonate });
-  } catch (error) {
-    console.error("Lỗi khi tạo Donate mới:", error);
-    res.status(500).json({ message: "Lỗi khi tạo Donate mới", error: error.message });
+    // Log giao dịch ví - Người nhận
+    await WalletTransaction.create({
+      userId: receiverDoc._id,
+      type: "donate_in",
+      amount: money,
+      balanceBefore: receiverBalanceBefore,
+      balanceAfter: receiverDoc.dPointAvailable,
+      status: "completed",
+      meta: { 
+        donateId: donate._id,
+        senderUserId: senderDoc._id,
+        note: `Nhận donate từ @${senderDoc.username}` 
+      },
+    });
+    
+    return res.json({ 
+      ok: true, 
+      message: "Donate thành công!",
+      donate: donate, 
+      dPointAvailable: senderDoc.dPointAvailable,
+      receiver: {
+        username: receiverDoc.username,
+        displayName: receiverDoc.displayName,
+        avatarUrl: receiverDoc.avatarUrl,
+      }
+    });
+
+  } catch (e) {
+    console.error("createDonation error:", e);
+    return res.status(500).json({ message: "Donate thất bại, vui lòng thử lại", error: e.message });
   }
-};
+}
+
+/**
+ * Lấy lịch sử donate đã gửi
+ * GET /api/donations/sent
+ */
+export async function getSentDonations(req, res) {
+  try {
+    const userId = req.user._id;
+    const { page = 1, limit = 20 } = req.query;
+
+    const donations = await Donate.find({ senderUserId: userId })
+      .populate("receiverUserId", "username displayName avatarUrl")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const total = await Donate.countDocuments({ senderUserId: userId });
+
+    return res.json({
+      donations,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("getSentDonations error:", error);
+    return res.status(500).json({ message: "Lỗi server" });
+  }
+}
+
+/**
+ * Lấy lịch sử donate đã nhận
+ * GET /api/donations/received
+ */
+export async function getReceivedDonations(req, res) {
+  try {
+    const userId = req.user._id;
+    const { page = 1, limit = 20 } = req.query;
+
+    const donations = await Donate.find({ receiverUserId: userId })
+      .populate("senderUserId", "username displayName avatarUrl")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const total = await Donate.countDocuments({ receiverUserId: userId });
+
+    return res.json({
+      donations,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("getReceivedDonations error:", error);
+    return res.status(500).json({ message: "Lỗi server" });
+  }
+}
 
 // Cập nhật donate theo ID
 export const updateDonate = async (req, res) => {
@@ -54,12 +247,10 @@ export const updateDonate = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    // Validate id
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "ID không hợp lệ" });
     }
 
-    // Validate dữ liệu update
     if (updateData.status && !["pending", "success", "failed"].includes(updateData.status)) {
       return res.status(400).json({ message: "Trường status không hợp lệ" });
     }
@@ -85,7 +276,6 @@ export const deleteDonate = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate id
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "ID không hợp lệ" });
     }

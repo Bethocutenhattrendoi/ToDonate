@@ -9,8 +9,25 @@ const userSchema = new mongoose.Schema(
     avatarUrl: { type: String, default: "", trim: true },
     coverUrl: { type: String, default: "", trim: true },
     isVerified: { type: Boolean, default: false },
+    // Funds available for spending
+    dPointAvailable: { type: Number, default: 0, min: 0 },
+    // Funds locked (e.g. pending withdrawal)
+    dPointLocked: { type: Number, default: 0, min: 0 },
+
+    bankAccount: {
+      bankName: { type: String, default: "" },
+      accountNumber: { type: String, default: "" }, // MVP: store plain; encrypt in production (AES/GCM)
+      accountHolder: { type: String, default: "" },
+      branch: { type: String, default: "" },
+      updatedAt: { type: Date },
+    },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// Convenience getter for total balance (available + locked)
+userSchema.virtual("dPointTotal").get(function () {
+  return (this.dPointAvailable || 0) + (this.dPointLocked || 0);
+});
 
 export default mongoose.model("User", userSchema);
