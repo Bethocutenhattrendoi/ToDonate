@@ -9,6 +9,11 @@ const userSchema = new mongoose.Schema(
     avatarUrl: { type: String, default: "", trim: true },
     coverUrl: { type: String, default: "", trim: true },
     isVerified: { type: Boolean, default: false },
+
+    // User role and ban status
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+    isBanned: { type: Boolean, default: false },
+
     // Funds available for spending
     dPointAvailable: { type: Number, default: 0, min: 0 },
     // Funds locked (e.g. pending withdrawal)

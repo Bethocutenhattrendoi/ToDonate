@@ -23,7 +23,7 @@ router.get("/receiver/:username", optionalAuth, getReceiver);
 router.get("/sent", requireAuth, getSentDonations);
 
 // Lấy lịch sử donate đã nhận
-router.get("/received", requireAuth, getReceivedDonations);
+router.get("/received", getReceivedDonations);
 
 // Tạo donation mới (yêu cầu đăng nhập)
 router.post("/", requireAuth, createDonation);

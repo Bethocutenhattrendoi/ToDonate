@@ -209,22 +209,32 @@ export async function getSentDonations(req, res) {
 }
 
 /**
- * Lấy lịch sử donate đã nhận
- * GET /api/donations/received
+ * Lấy lịch sử donate đã nhận (PUBLIC: cho phép xem bất kỳ user nào theo username)
+ * GET /api/donations/received?username=xxx
  */
 export async function getReceivedDonations(req, res) {
   try {
-    const userId = req.user._id;
-    const { page = 1, limit = 20 } = req.query;
+    // Nếu truyền username thì show public, nếu không truy vấn user đang đăng nhập cũ (phục vụ frontend/my profile)
+    const { username, page = 1, limit = 20 } = req.query;
 
-    const donations = await Donate.find({ receiverUserId: userId })
+    let receiverDoc;
+    if (username) {
+      receiverDoc = await User.findOne({ username });
+      if (!receiverDoc) return res.json({ donations: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } });
+    }
+
+    // Nếu không truyền username nhưng có req.user (profile cá nhân)
+    const receiverUserId = receiverDoc?._id || req.user?._id;
+    if (!receiverUserId) return res.json({ donations: [], pagination: { page: 1, limit, total: 0, totalPages: 1 } });
+
+    const donations = await Donate.find({ receiverUserId })
       .populate("senderUserId", "username displayName avatarUrl")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .lean();
 
-    const total = await Donate.countDocuments({ receiverUserId: userId });
+    const total = await Donate.countDocuments({ receiverUserId });
 
     return res.json({
       donations,
@@ -232,12 +242,12 @@ export async function getReceivedDonations(req, res) {
         page: Number(page),
         limit: Number(limit),
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
   } catch (error) {
     console.error("getReceivedDonations error:", error);
-    return res.status(500).json({ message: "Lỗi server" });
+    return res.json({ donations: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } });
   }
 }
 
@@ -294,4 +304,4 @@ export const deleteDonate = async (req, res) => {
     console.error("Lỗi khi xoá Donate:", error);
     res.status(500).json({ message: "Lỗi khi xoá Donate", error: error.message });
   }
-};
+}

@@ -138,7 +138,7 @@ export async function vnpayReturn(req, res) {
       if (existingTx) {
         console.log(`Transaction ${txnRef} already processed`);
         
-        // ✅ Trả về status=success để frontend hiểu là OK
+        //  Trả về status=success để frontend hiểu là OK
         return res.redirect(
           `${frontendUrl}/payment/result?status=success&amount=${amount}&message=already_processed`
         );
@@ -170,33 +170,33 @@ export async function vnpayReturn(req, res) {
           balanceAfter: user.dPointAvailable,
           status: "completed",
           meta: {
-            vnpayTxnRef: txnRef,  // 👈 Lưu txnRef để check trùng
+            vnpayTxnRef: txnRef,  //  Lưu txnRef để check trùng
             note: "Nạp qua VNPay",
           },
         });
 
         console.log("Topup success! New balance:", user.dPointAvailable);
 
-        // ✅ Xử lý thành công lần đầu
+        //  Xử lý thành công lần đầu
         return res.redirect(
           `${frontendUrl}/payment/result?status=success&amount=${amount}`
         );
       } else {
         console.log("User not found for txnRef:", txnRef);
-        // ✅ Khi không tìm thấy user
+        //  Khi không tìm thấy user
         return res.redirect(
           `${frontendUrl}/payment/result?status=failed&message=user_not_found`
         );
       }
     } else {
-      // ✅ Khi thanh toán thất bại
+      //  Khi thanh toán thất bại
       return res.redirect(
         `${frontendUrl}/payment/result?status=failed&message=payment_failed`
       );
     }
   } catch (error) {
     console.error("vnpayReturn error:", error);
-    // ✅ Khi có lỗi server
+    //  Khi có lỗi server
     return res.redirect(
       `${process.env.FRONTEND_URL || "http://localhost:5173"}/payment/result?status=failed&message=server_error`
     );
@@ -222,7 +222,7 @@ export async function vnpayIPN(req, res) {
     const amount = Number(vnp_Amount) / 100;
     const txnRef = vnp_TxnRef;
 
-    // ✅ QUAN TRỌNG: Kiểm tra trùng
+    //  QUAN TRỌNG: Kiểm tra trùng
     const existingTx = await WalletTransaction.findOne({ 
       "meta.vnpayTxnRef": txnRef,
       status: "completed"

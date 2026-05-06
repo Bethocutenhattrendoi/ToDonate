@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import WithdrawalRequest from "../models/WithdrawalRequest.js";
+import Donate from "../models/Donate.js";
 
 export async function topup(req, res) {
   const { amount = 0, note = "topup" } = req.body;
@@ -84,7 +85,7 @@ export async function requestWithdraw(req, res) {
       accountHolder: ba.accountHolder,
     });
 
-    // ✅ TẠO WALLET TRANSACTION ĐỂ HIỂN THỊ TRONG LỊCH SỬ
+    //  TẠO WALLET TRANSACTION ĐỂ HIỂN THỊ TRONG LỊCH SỬ
     await WalletTransaction.create({
       userId: user._id,
       type: "withdraw",
@@ -114,25 +115,103 @@ export async function requestWithdraw(req, res) {
   }
 }
 
-// Lấy lịch sử giao dịch
+// Lấy lịch sử giao dịch (gộp WalletTransaction + Donate)
 export async function getTransactionHistory(req, res) {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 10 } = req.query;
+    const username = req.user.username;
+    const pageNum = Number(req.query.page || 1);
+    const limitNum = Number(req.query.limit || 10);
 
-    const transactions = await WalletTransaction.find({ userId })
+    const page = Number.isFinite(pageNum) && pageNum > 0 ? pageNum : 1;
+    const limit = Number.isFinite(limitNum) && limitNum > 0 ? limitNum : 10;
+
+    // Mẹo phân trang kiểu "feed":
+    // lấy nhiều hơn rồi merge-sort-slice để ra đúng page
+    const need = page * limit;
+
+    // 1) WalletTransaction
+    const walletTxs = await WalletTransaction.find({ userId })
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
+      .limit(need)
       .lean();
 
-    const total = await WalletTransaction.countDocuments({ userId });
+    const walletTotal = await WalletTransaction.countDocuments({ userId });
+
+    // 2) Donate (donate_out + donate_in)
+    const donateDocs = await Donate.find({
+      status: "success",
+      $or: [
+        { senderUserId: userId },
+        { receiverUserId: userId },
+        { receiverUsername: username },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(need)
+      .lean();
+
+    const donateTotal = await Donate.countDocuments({
+      status: "success",
+      $or: [
+        { senderUserId: userId },
+        { receiverUserId: userId },
+        { receiverUsername: username },
+      ],
+    });
+
+    // Map Donate -> format giống WalletTransaction để FE dùng lại TransactionItem
+    const donateTxs = donateDocs
+      .map((d) => {
+        const isSender = String(d.senderUserId) === String(userId);
+        const isReceiver =
+          String(d.receiverUserId || "") === String(userId) ||
+          String(d.receiverUsername || "") === String(username || "");
+
+        if (!isSender && !isReceiver) return null;
+
+
+        // NOTE hiển thị rõ donate cho dự án nào + (tuỳ chọn) lời nhắn
+        let note = "Donate";
+
+        if (d.campaignSlug || d.campaignId || d.type === "campaign") {
+          const projectName = (d.title || d.campaignSlug || "Chiến dịch").trim();
+          note = `Ủng hộ dự án: ${projectName}`;
+          if (d.message && String(d.message).trim()) {
+            note += ` • "${String(d.message).trim()}"`;
+          }
+        } else {
+          if (d.message && String(d.message).trim()) {
+            note = `Donate: ${String(d.message).trim()}`;
+          }
+        }
+
+        return {
+          _id: `donate_${d._id}`,
+          type: isSender ? "donate_out" : "donate_in",
+          amount: Number(d.amount || 0),
+          status: "completed",
+          createdAt: d.createdAt,
+          meta: { note, campaignSlug: d.campaignSlug || "" },
+        };
+      })
+      .filter(Boolean);
+
+    // 3) Merge + sort + slice đúng trang
+    const merged = [...walletTxs, ...donateTxs].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    const start = (page - 1) * limit;
+    const sliced = merged.slice(start, start + limit);
+
+    const total = walletTotal + donateTotal;
 
     return res.json({
-      transactions,
+      transactions: sliced,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page,
+        limit,
         total,
         totalPages: Math.ceil(total / limit),
       },

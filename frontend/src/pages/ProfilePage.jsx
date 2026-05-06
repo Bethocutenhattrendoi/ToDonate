@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { fetchMe } from "../lib/auth";
 import {
   Wallet,
@@ -261,18 +261,25 @@ export default function ProfilePage() {
 
   // Handle Save Bank
   async function handleSaveBank() {
-    if (!bankName || !accountNumber || ! accountHolder) {
+    if (!bankName || !accountNumber || !accountHolder) {
       return toast.error("Vui lòng điền đầy đủ thông tin ngân hàng");
     }
 
     setBankLoading(true);
     try {
       await apiFetch("/api/profile/bank", {
-        method:  "POST",
+        method: "POST",
         body: JSON.stringify({ bankName, accountNumber, accountHolder, branch }),
       });
+
+      // ✅ cập nhật lại state để UI đổi ngay
+      const fresh = await fetchMe();
+      setMe(fresh);
+
+      // tuỳ chọn: reset input số TK
+      setAccountNumber("");
+
       toast.success("Cập nhật tài khoản ngân hàng thành công!");
-      await fetchMe();
     } catch (err) {
       toast.error(err.message || "Cập nhật thất bại");
     } finally {

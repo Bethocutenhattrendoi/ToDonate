@@ -26,7 +26,7 @@ const donateSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId, 
       ref: "User",
       index: true,
-      // ❌ Bỏ required vì trong createDonation chưa set field này
+      // Bỏ required vì trong createDonation chưa set field này
     },
 
     // Optional: campaign / box
@@ -34,6 +34,11 @@ const donateSchema = new mongoose.Schema(
 
     // Display name của sender (giữ lại cho history)
     name: { type: String, required: true, trim: true },
+
+
+    // Thông tin campaign liên quan (nếu có)
+    campaignId: { type: mongoose.Schema.Types.ObjectId, ref: "Campaign" },
+    campaignSlug: { type: String },
 
     amount: { type: Number, required: true, min: 1000 },
 

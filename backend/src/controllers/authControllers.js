@@ -27,6 +27,15 @@ export const googleLogin = async (req, res) => {
     const baseUsername = (email.split("@")[0] || "user").toLowerCase();
 
     let user = await User.findOne({ email });
+    if (user?.isBanned) {
+      res.clearCookie("access_token", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: false,
+        path: "/",
+      });
+      return res.status(403).json({ message: "Tài khoản đã bị khóa (banned)." });
+    }
     if (!user) {
       // đảm bảo unique username
       let username = baseUsername;
@@ -45,7 +54,7 @@ export const googleLogin = async (req, res) => {
         googleId,
       });
     } else {
-      // cập nhật avatar/name theo Google nếu muốn
+      // cập nhật avatar/name theo Google
       user.googleId = user.googleId || googleId;
       user.avatarUrl = user.avatarUrl || picture;
       user.displayName = user.displayName || name;
@@ -58,11 +67,11 @@ export const googleLogin = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ✅ khuyên dùng cookie httpOnly
+    //  khuyên dùng cookie httpOnly
     res.cookie("access_token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // dev
+      secure: false, 
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

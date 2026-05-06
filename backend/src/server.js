@@ -11,16 +11,18 @@ import profileRouter from "./routes/profileRouter.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import vnpayRouter from "./routes/vnpayRouter.js";
 import exploreRouter from "./routes/exploreRouter.js";
+import campaignRouter from "./routes/campaignRouter.js";
+import adminRouter from "./routes/adminRouter.js";
 
 dotenv.config();
 
 const app = express();
 
 app.use(cors({ 
-  origin: "http://localhost:5173", // 👈 URL cụ thể, không dùng true
+  origin: "http://localhost:5173", //  URL cụ thể, không dùng true
   credentials: true 
 }));
-app.use(cookieParser()); // 👈 Thêm để đọc cookies
+app.use(cookieParser()); // Thêm để đọc cookies
 app.use(express.json());
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -32,6 +34,8 @@ app.use("/api/wallet", walletRoutes);
 app.use("/api/donations", donationsRouter);
 app.use("/api/vnpay", vnpayRouter);
 app.use("/api/explore", exploreRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/campaigns", campaignRouter);
 
 const PORT = process.env.PORT || 5001;
 const MONGO_URI = process.env.MONGOOSEDB_CONNECT_STRING;

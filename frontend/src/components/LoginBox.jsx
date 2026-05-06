@@ -22,7 +22,7 @@ export default function LoginBox({ onLoggedIn }) {
 
           const data = await r.json(); // { user: {...} }
 
-          // ✅ Chỉ đóng popup + cập nhật navbar, KHÔNG navigate
+          //  Chỉ đóng popup + cập nhật navbar, KHÔNG navigate
           onLoggedIn?.(data?.user);
         }}
         onError={() => alert("Google Login Failed")}

@@ -26,14 +26,9 @@ export default function PaymentResult() {
   const vnpAmount = searchParams.get("vnp_Amount");
 
   // ✅ Xác định thành công hay thất bại
-  // - status=success -> thành công  
-  // - vnp_ResponseCode=00 -> VNPay thanh toán thành công
+  // - status=success -> thành công
   // - message=already_processed -> đã xử lý trước đó (vẫn OK)
-  const isSuccess = 
-    status === "success" || 
-    vnpResponseCode === "00" || 
-    message === "already_processed";
-    
+  const isSuccess = status === "success" || message === "already_processed";
   const isAlreadyProcessed = message === "already_processed";
 
   // Tính số tiền (VNPay trả về x100)
@@ -41,21 +36,25 @@ export default function PaymentResult() {
 
   // ✅ Load user data để lấy số dư mới
   useEffect(() => {
-    async function loadUser() {
+    async function run() {
       setLoading(true);
       try {
-        // Đợi backend xử lý xong
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 1) gọi backend verify + cộng tiền
+        await fetch(`${API_BASE}/api/vnpay/verify?${searchParams.toString()}`, {
+          credentials: "include",
+        });
+
+        // 2) lấy lại số dư mới
         const user = await fetchMe();
         setMe(user);
-      } catch (err) {
-        console.error("Load user error:", err);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
     }
 
-    loadUser();
+    run();
   }, []);
 
   if (loading) {
@@ -146,7 +145,7 @@ export default function PaymentResult() {
         {/* Action Button */}
         <button
           onClick={() => navigate("/profile")}
-          className="w-full h-12 rounded-xl bg-[#4D63FF] text-white font-semibold hover:brightness-110 transition"
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-[#5B73FF] to-[#7B5CFF] text-white font-semibold shadow-lg shadow-[#4D63FF]/25 hover:brightness-110 transition"
         >
           Về hồ sơ
         </button>
